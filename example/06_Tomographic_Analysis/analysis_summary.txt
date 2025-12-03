@@ -1,0 +1,45 @@
+================================================================================
+TOMOGRAM ANALYSIS SUMMARY
+================================================================================
+
+Analysis Date: 2025-11-24 09:27:24
+
+INPUT FILES:
+  Tomogram: ../data/tomograms/tomogram_alignment_recon_56nm.tiff
+  Cell Info: ../data/cellinfo/cellinfo_ZCB_9.mat
+
+TOMOGRAM PROPERTIES:
+  Shape: (195, 251, 253)
+  Pixel Size: 56 nm
+  Rotation: 0° around z-axis
+  Intensity Threshold: 0.75
+
+FFT ANALYSIS:
+  FFT Threshold Factor: 7e-05
+  Center Cutoff Radius: 0.025
+  Max Magnitude: 1.397638e+08
+
+VOXEL ANALYSIS:
+  Voxel Size: (25, 25, 25)
+  Number of Voxels (z, y, x): (8, 11, 11)
+
+UNIT CELL INFORMATION:
+  ~n unit cells per tomogram: 16.00
+  ~m unit cells per voxel: 2.05
+
+PROJECTION:
+  HKL indices: (1, 0, 1)
+
+OUTPUT FILES:
+  tomogram_3d_html: ../example/06_Tomographic_Analysis/plots/3d_visualizations/tomogram_3d.html
+  fft_3d_html: ../example/06_Tomographic_Analysis/plots/fft_analysis/fft_3d.html
+  projection_real: ../example/06_Tomographic_Analysis/plots/projections/projection_real_space.png
+  projection_real_fft: ../example/06_Tomographic_Analysis/plots/projections/projection_real_space_fft.png
+  projection_reciprocal: ../example/06_Tomographic_Analysis/plots/projections/projection_reciprocal_space.png
+  projection_combined: ../example/06_Tomographic_Analysis/plots/projections/projection_combined_analysis.png
+  hkl_projection_grid: ../example/06_Tomographic_Analysis/plots/projections/hkl_projection_grid.png
+  hkl_vector_plot: ../example/06_Tomographic_Analysis/plots/3d_visualizations/hkl_vector_in_tomogram.html
+  unit_cell_plot: ../example/06_Tomographic_Analysis/unit_cell_info/unit_cell_in_tomogram.html
+  h5_file: ../example/06_Tomographic_Analysis/data/analysis_complete.h5
+
+================================================================================

@@ -12,3 +12,4 @@ data/results/ZCB_9_3D_combined_diffraction_patterns.h5
 example/06_Tomographic_Analysis/data/analysis_complete.h5
 data/results/ZCB_9_3D_sample_indices_variance_threshold.h5
 example/04_Inference_Experimental/ZCB_9_3D_5065_sample_indices_variance_threshold.h5
+example/06_Tomographic_Analysis/plots/fft_analysis/fft_3d.html 

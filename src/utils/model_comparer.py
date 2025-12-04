@@ -14,6 +14,7 @@ import importlib
 from tqdm import tqdm
 import h5py
 import re
+import json
 from collections import defaultdict
 
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), '../../../NN/ptychosaxsNN/')))
@@ -2313,6 +2314,15 @@ class ModelComparer:
         """
         Group statistics by model type (L1/L2/pearson, Unet/no_Unet), combining iterations.
         """
+        # Detect which processing field name is used (patterns_processed or angles_processed)
+        processing_field = None
+        if stats:
+            first_metrics = list(stats.values())[0]
+            if 'patterns_processed' in first_metrics:
+                processing_field = 'patterns_processed'
+            elif 'angles_processed' in first_metrics:
+                processing_field = 'angles_processed'
+        
         grouped_stats = {}
         
         for model_key, metrics in stats.items():
@@ -2340,7 +2350,11 @@ class ModelComparer:
             
             grouped_stats[model_type]['total_peaks_matched'] += metrics['total_peaks_matched']
             grouped_stats[model_type]['total_peaks_ideal'] += metrics['total_peaks_ideal']
-            grouped_stats[model_type]['total_patterns'] += metrics['patterns_processed']
+            
+            # Handle both patterns_processed and angles_processed
+            if processing_field and processing_field in metrics:
+                grouped_stats[model_type]['total_patterns'] += metrics[processing_field]
+            
             if 'total_peak_tp' in metrics:
                 grouped_stats[model_type]['total_peak_tp'] += metrics['total_peak_tp']
             if 'total_peak_fp' in metrics:
@@ -2411,7 +2425,7 @@ class ModelComparer:
         priority_columns = ['Model', 'avg_peak_precision', 'avg_peak_recall', 'avg_peak_f1', 
                            'peak_detection_rate', 'avg_psnr', 'avg_ssim', 'avg_peak_dist', 
                            'avg_fwhm_diff', 'total_peak_tp', 'total_peak_fp', 'total_peak_fn',
-                           'total_peaks_matched', 'total_peaks_ideal', 'patterns_processed']
+                           'total_peaks_matched', 'total_peaks_ideal', 'patterns_processed', 'angles_processed']
         
         # Get remaining columns not in priority list
         remaining_cols = [col for col in df.columns if col not in priority_columns]
@@ -2424,7 +2438,7 @@ class ModelComparer:
             if col == 'Model':
                 continue
             if col in ['total_peaks_matched', 'total_peaks_ideal', 'total_patterns', 'patterns_processed',
-                      'total_peak_tp', 'total_peak_fp', 'total_peak_fn']:
+                      'angles_processed', 'total_peak_tp', 'total_peak_fp', 'total_peak_fn']:
                 formatted_df[col] = df[col].map(lambda x: f"{int(x):,}")
             else:
                 formatted_df[col] = df[col].map(lambda x: f"{x:.4f}")
@@ -2434,6 +2448,395 @@ class ModelComparer:
             sort_by
         ))
         print(formatted_df.to_string())
+    
+    def load_stats_from_file(self, file_path: str) -> List[Dict[str, Dict[str, float]]]:
+        """
+        Load statistics from a JSON file.
+        
+        Args:
+            file_path (str): Path to the JSON file containing stats
+            
+        Returns:
+            List[Dict[str, Dict[str, float]]]: List of dictionaries, one per epoch,
+                where each dictionary contains model stats for that epoch
+        """
+        with open(file_path, 'r') as f:
+            stats_list = json.load(f)
+        return stats_list
+    
+    def flatten_stats_list(self, stats_list: List[Dict[str, Dict[str, float]]], 
+                          epochs: Optional[List[int]] = None) -> Dict[str, Dict[str, float]]:
+        """
+        Flatten a list of epoch-based stats dictionaries into a single dictionary.
+        
+        Args:
+            stats_list (List[Dict[str, Dict[str, float]]]): List of dictionaries, one per epoch
+            epochs (List[int], optional): List of epoch numbers corresponding to each stats dict.
+                If None, will try to extract from model keys (e.g., "L1_Unet_2" -> 2)
+                
+        Returns:
+            Dict[str, Dict[str, float]]: Flattened dictionary with keys like "L1_Unet_2"
+        """
+        flattened = {}
+        
+        for i, epoch_stats in enumerate(stats_list):
+            if epochs and i < len(epochs):
+                epoch = epochs[i]
+            else:
+                # Try to extract epoch from first model key
+                if epoch_stats:
+                    first_key = list(epoch_stats.keys())[0]
+                    # Extract number at the end (e.g., "L1_Unet_2" -> 2)
+                    match = re.search(r'_(\d+)$', first_key)
+                    epoch = int(match.group(1)) if match else i
+            
+            for model_key, metrics in epoch_stats.items():
+                flattened[model_key] = metrics
+        
+        return flattened
+    
+    def aggregate_stats_across_epochs(self, stats_list: List[Dict[str, Dict[str, float]]],
+                                     epochs: Optional[List[int]] = None) -> Dict[str, Dict[str, float]]:
+        """
+        Aggregate statistics across all epochs, averaging metrics where appropriate.
+        
+        Args:
+            stats_list (List[Dict[str, Dict[str, float]]]): List of dictionaries, one per epoch
+            epochs (List[int], optional): List of epoch numbers corresponding to each stats dict
+                
+        Returns:
+            Dict[str, Dict[str, float]]: Aggregated stats with model type as key (e.g., "L1_Unet")
+        """
+        # Detect which processing field name is used (patterns_processed or angles_processed)
+        processing_field = None
+        if stats_list and stats_list[0]:
+            first_metrics = list(stats_list[0].values())[0]
+            if 'patterns_processed' in first_metrics:
+                processing_field = 'patterns_processed'
+            elif 'angles_processed' in first_metrics:
+                processing_field = 'angles_processed'
+        
+        aggregated = defaultdict(lambda: {
+            'avg_psnr': [],
+            'avg_ssim': [],
+            'avg_xcorr': [],
+            'avg_peak_dist': [],
+            'avg_fwhm_diff': [],
+            'peak_detection_rate': [],
+            'total_peaks_matched': 0,
+            'total_peaks_ideal': 0,
+            'total_peak_tp': 0,
+            'total_peak_fp': 0,
+            'total_peak_fn': 0,
+            'avg_peak_precision': [],
+            'avg_peak_recall': [],
+            'avg_peak_f1': []
+        })
+        
+        # Add processing field if detected
+        if processing_field:
+            for model in aggregated:
+                aggregated[model][processing_field] = 0
+        
+        for epoch_stats in stats_list:
+            for model_key, metrics in epoch_stats.items():
+                # Extract base model name (remove epoch suffix)
+                base_model = re.sub(r'_\d+$', '', model_key)
+                
+                # Aggregate metrics
+                for metric in ['avg_psnr', 'avg_ssim', 'avg_xcorr', 'avg_peak_dist', 
+                              'avg_fwhm_diff', 'peak_detection_rate', 'avg_peak_precision',
+                              'avg_peak_recall', 'avg_peak_f1']:
+                    if metric in metrics:
+                        aggregated[base_model][metric].append(metrics[metric])
+                
+                # Sum totals (handle both patterns_processed and angles_processed)
+                for metric in ['total_peaks_matched', 'total_peaks_ideal',
+                              'total_peak_tp', 'total_peak_fp', 'total_peak_fn']:
+                    if metric in metrics:
+                        aggregated[base_model][metric] += metrics[metric]
+                
+                # Handle processing field (patterns_processed or angles_processed)
+                if processing_field and processing_field in metrics:
+                    aggregated[base_model][processing_field] += metrics[processing_field]
+        
+        # Average the list metrics
+        result = {}
+        for model, metrics in aggregated.items():
+            result[model] = {}
+            for metric, values in metrics.items():
+                if isinstance(values, list) and values:
+                    result[model][metric] = np.mean(values)
+                else:
+                    result[model][metric] = values
+        
+        return result
+    
+    def print_stats_from_file(self, file_path: str,
+                             sort_by: str = 'avg_ssim',
+                             group_by_model: bool = True,
+                             aggregate_epochs: bool = False,
+                             epochs: Optional[List[int]] = None):
+        """
+        Load statistics from a file and print them.
+        
+        Args:
+            file_path (str): Path to the JSON file containing stats
+            sort_by (str): Metric to sort by
+            group_by_model (bool): Whether to group statistics by model type.
+                Note: When aggregate_epochs=True, model names are already base names (e.g., "L1_Unet"),
+                so group_by_model will be automatically set to False to avoid incorrect grouping.
+            aggregate_epochs (bool): If True, average metrics across all epochs.
+                If False, show stats for each epoch separately
+            epochs (List[int], optional): List of epoch numbers corresponding to each stats dict.
+                If None and aggregate_epochs=False, will try to extract from model keys
+        """
+        # Load stats from file
+        stats_list = self.load_stats_from_file(file_path)
+        
+        if aggregate_epochs:
+            # Aggregate across epochs
+            stats = self.aggregate_stats_across_epochs(stats_list, epochs)
+            print(f"\nLoaded stats from: {file_path}")
+            print("Aggregated across all epochs")
+            # When aggregated, model names are already base names, so don't group again
+            self.print_cumulative_stats(stats, sort_by=sort_by, group_by_model=False)
+        else:
+            # Flatten to show all epochs
+            stats = self.flatten_stats_list(stats_list, epochs)
+            print(f"\nLoaded stats from: {file_path}")
+            print("Showing all epochs separately")
+            self.print_cumulative_stats(stats, sort_by=sort_by, group_by_model=group_by_model)
+    
+    def find_stats_by_model_and_epoch(self, file_path: str,
+                                      loss_function: str,
+                                      epoch: int,
+                                      has_skip_connections: Optional[bool] = None,
+                                      print_results: bool = True) -> Optional[Dict[str, float]]:
+        """
+        Find and return statistics for a specific loss function and epoch.
+        
+        Args:
+            file_path (str): Path to the JSON file containing stats
+            loss_function (str): Loss function name ('L1', 'L2', 'pearson', or 'pearson_loss')
+            epoch (int): Epoch number to find
+            has_skip_connections (bool, optional): If True, only return models with skip connections (Unet).
+                If False, only return models without skip connections (no_Unet).
+                If None, return both.
+            print_results (bool): If True, print the results in a formatted table. If False, just return the dict.
+                
+        Returns:
+            Dict[str, float] or None: Statistics dictionary for the matching model(s), or None if not found.
+                If multiple models match (e.g., has_skip_connections=None), returns a dict with model names as keys.
+        """
+        # Load stats from file
+        stats_list = self.load_stats_from_file(file_path)
+        
+        # Normalize loss function name
+        loss_function = loss_function.lower()
+        if loss_function == 'pearson_loss':
+            loss_function = 'pearson'
+        
+        # Build model key pattern
+        if has_skip_connections is True:
+            skip_pattern = 'Unet'
+        elif has_skip_connections is False:
+            skip_pattern = 'no_Unet'
+        else:
+            skip_pattern = None
+        
+        # Find matching stats
+        found_stats = {}
+        
+        for epoch_stats in stats_list:
+            for model_key, metrics in epoch_stats.items():
+                # Extract epoch from model key
+                match = re.search(r'_(\d+)$', model_key)
+                if not match:
+                    continue
+                model_epoch = int(match.group(1))
+                
+                # Check if epoch matches
+                if model_epoch != epoch:
+                    continue
+                
+                # Check if loss function matches
+                if not model_key.lower().startswith(loss_function.lower()):
+                    continue
+                
+                # Check skip connection pattern
+                if skip_pattern and skip_pattern not in model_key:
+                    continue
+                
+                # Found a match
+                found_stats[model_key] = metrics
+        
+        if not found_stats:
+            if print_results:
+                print(f"\nNo stats found for loss_function='{loss_function}', epoch={epoch}, "
+                      f"has_skip_connections={has_skip_connections}")
+            return None
+        
+        if print_results:
+            # Print results in a formatted table
+            print(f"\nStats for loss_function='{loss_function}', epoch={epoch}, "
+                  f"has_skip_connections={has_skip_connections}")
+            print("=" * 80)
+            
+            # Create DataFrame for nice formatting
+            rows = []
+            for model_key, metrics in found_stats.items():
+                row = {'Model': model_key}
+                row.update(metrics)
+                rows.append(row)
+            
+            df = pd.DataFrame(rows)
+            
+            # Reorder columns
+            priority_columns = ['Model', 'avg_peak_precision', 'avg_peak_recall', 'avg_peak_f1', 
+                               'peak_detection_rate', 'avg_psnr', 'avg_ssim', 'avg_peak_dist', 
+                               'avg_fwhm_diff', 'total_peak_tp', 'total_peak_fp', 'total_peak_fn',
+                               'total_peaks_matched', 'total_peaks_ideal', 'patterns_processed', 'angles_processed']
+            remaining_cols = [col for col in df.columns if col not in priority_columns]
+            column_order = [col for col in priority_columns if col in df.columns] + remaining_cols
+            df = df[column_order]
+            
+            # Format values
+            formatted_df = df.copy()
+            for col in df.columns:
+                if col == 'Model':
+                    continue
+                if col in ['total_peaks_matched', 'total_peaks_ideal', 'total_patterns', 'patterns_processed',
+                          'angles_processed', 'total_peak_tp', 'total_peak_fp', 'total_peak_fn']:
+                    formatted_df[col] = df[col].map(lambda x: f"{int(x):,}")
+                else:
+                    formatted_df[col] = df[col].map(lambda x: f"{x:.4f}")
+            
+            print(formatted_df.to_string())
+            print("=" * 80)
+        
+        # Return single dict if only one match, otherwise return dict of dicts
+        if len(found_stats) == 1:
+            return list(found_stats.values())[0]
+        else:
+            return found_stats
+    
+    def find_stats_by_criteria(self, file_path: str,
+                               loss_functions: Optional[List[str]] = None,
+                               epochs: Optional[List[int]] = None,
+                               has_skip_connections: Optional[bool] = None,
+                               sort_by: str = 'avg_peak_f1',
+                               print_results: bool = True) -> Dict[str, Dict[str, float]]:
+        """
+        Find statistics matching multiple criteria (loss functions, epochs, skip connections).
+        
+        Args:
+            file_path (str): Path to the JSON file containing stats
+            loss_functions (List[str], optional): List of loss function names to filter by.
+                Options: 'L1', 'L2', 'pearson', 'pearson_loss'. If None, includes all.
+            epochs (List[int], optional): List of epoch numbers to filter by. If None, includes all.
+            has_skip_connections (bool, optional): If True, only return models with skip connections (Unet).
+                If False, only return models without skip connections (no_Unet).
+                If None, return both.
+            sort_by (str): Metric to sort results by
+            print_results (bool): If True, print the results in a formatted table. If False, just return the dict.
+                
+        Returns:
+            Dict[str, Dict[str, float]]: Dictionary with model keys and their statistics
+        """
+        # Load stats from file
+        stats_list = self.load_stats_from_file(file_path)
+        
+        # Normalize loss function names
+        if loss_functions:
+            loss_functions = [lf.lower().replace('pearson_loss', 'pearson') for lf in loss_functions]
+        
+        # Build skip connection pattern
+        if has_skip_connections is True:
+            skip_pattern = 'Unet'
+        elif has_skip_connections is False:
+            skip_pattern = 'no_Unet'
+        else:
+            skip_pattern = None
+        
+        # Find matching stats
+        found_stats = {}
+        
+        for epoch_stats in stats_list:
+            for model_key, metrics in epoch_stats.items():
+                # Extract epoch from model key
+                match = re.search(r'_(\d+)$', model_key)
+                if not match:
+                    continue
+                model_epoch = int(match.group(1))
+                
+                # Check if epoch matches
+                if epochs and model_epoch not in epochs:
+                    continue
+                
+                # Check if loss function matches
+                if loss_functions:
+                    model_loss = model_key.split('_')[0].lower()
+                    if model_loss not in loss_functions:
+                        continue
+                
+                # Check skip connection pattern
+                if skip_pattern and skip_pattern not in model_key:
+                    continue
+                
+                # Found a match
+                found_stats[model_key] = metrics
+        
+        if not found_stats:
+            if print_results:
+                print(f"\nNo stats found matching criteria:")
+                print(f"  loss_functions: {loss_functions}")
+                print(f"  epochs: {epochs}")
+                print(f"  has_skip_connections: {has_skip_connections}")
+            return {}
+        
+        if print_results:
+            # Print results in a formatted table
+            print(f"\nStats matching criteria:")
+            print(f"  loss_functions: {loss_functions if loss_functions else 'All'}")
+            print(f"  epochs: {epochs if epochs else 'All'}")
+            print(f"  has_skip_connections: {has_skip_connections}")
+            print("=" * 80)
+            
+            # Create DataFrame for nice formatting
+            rows = []
+            for model_key, metrics in found_stats.items():
+                row = {'Model': model_key}
+                row.update(metrics)
+                rows.append(row)
+            
+            df = pd.DataFrame(rows)
+            df = df.sort_values(by=sort_by, ascending=False)
+            
+            # Reorder columns
+            priority_columns = ['Model', 'avg_peak_precision', 'avg_peak_recall', 'avg_peak_f1', 
+                               'peak_detection_rate', 'avg_psnr', 'avg_ssim', 'avg_peak_dist', 
+                               'avg_fwhm_diff', 'total_peak_tp', 'total_peak_fp', 'total_peak_fn',
+                               'total_peaks_matched', 'total_peaks_ideal', 'patterns_processed', 'angles_processed']
+            remaining_cols = [col for col in df.columns if col not in priority_columns]
+            column_order = [col for col in priority_columns if col in df.columns] + remaining_cols
+            df = df[column_order]
+            
+            # Format values
+            formatted_df = df.copy()
+            for col in df.columns:
+                if col == 'Model':
+                    continue
+                if col in ['total_peaks_matched', 'total_peaks_ideal', 'total_patterns', 'patterns_processed',
+                          'angles_processed', 'total_peak_tp', 'total_peak_fp', 'total_peak_fn']:
+                    formatted_df[col] = df[col].map(lambda x: f"{int(x):,}")
+                else:
+                    formatted_df[col] = df[col].map(lambda x: f"{x:.4f}")
+            
+            print(formatted_df.to_string())
+            print("=" * 80)
+        
+        return found_stats
     
     def create_stats_table_figure(self, stats: Dict[str, Dict[str, float]], 
                                 sort_by: str = 'avg_ssim',

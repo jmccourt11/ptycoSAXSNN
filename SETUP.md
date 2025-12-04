@@ -10,7 +10,7 @@ ssh -X ptychosaxs@refiner.xray.aps.anl.gov
 
 Password is ```RubbingClobber$0```
 
-When connected via SSH to the ptychosaxs user account on refiner.xray.aps.anl.gov, artemis.xray.aps.anl.gov, or any other project computer:
+When connected via SSH to the ptychosaxs user account on refiner.xray.aps.anl.gov, artemis.xray.aps.anl.gov, or other GPU-containing project computer:
 
 ```bash
 conda activate ptychosaxs_v1

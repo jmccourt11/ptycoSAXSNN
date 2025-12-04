@@ -11,14 +11,13 @@ Sequential workflow pipeline:
 - **`02_Preprocess/`** - Data preprocessing and normalization
 - **`03_Train_Validation_Test/`** - Model training and validation, inference on simulated data
 - **`04_Inference_Experimental/`** - Application to experimental data, visualization
-- **`05_Postprocessing/`** - Organizing deconvolved results into H5/mat files
+- **`05_Postprocessing/`** - Organizing deconvolved results into H5/mat files, contains **`matlab/`**  which has MATLAB tools (SAXS4assembly, SAXSimagviewer)
 - **`06_Tomographic_Analysis/`** - 3D analysis, reciprocal space mapping (RSM)
 - **`07_Performance_Metrics/`** - Model evaluation and comparison
 - **`08_Batch_Mode/`** - Batch processing scripts
 - **`09_Clathrate_Lattice/`** - Colloidal clathrate assembly tools
 - **`src/models/`** - Neural network model definitions (U-Net, encoder-decoder)
 - **`src/utils/`** - Utility functions (data processing, visualization, tomographic)
-- **`matlab/`** - MATLAB tools (SAXS4assembly, SAXSimagviewer)
 - **`data/`** - Reference data, lattice files, masks
 - **`example/`** - Example notebook results
 
@@ -26,11 +25,11 @@ Sequential workflow pipeline:
 
 - Encoder-decoder networks for probe deconvolution
 - Physics-based simulation pipeline for training data
-- Experimental data processing for APS 12IDE beamline
+- Experimental data processing for APS 12-ID-E beamline
 
 ## Technical Stack
 
 - **Framework**: PyTorch
 - **Input/Output**: 256×256 diffraction patterns
-- **Architecture**: U-Net with skip connections
+- **Architecture**: U-Net (with skip connections)
 - **Loss Functions**: Pearson correlation, L1/L2 with symmetry penalties

@@ -3252,12 +3252,12 @@ def plot_hkl_projection_grid(tomo_data, magnitude_test, cellinfo_data, pixel_siz
         # Plot real
         ax_real = axes[row_real, col]
         im1 = ax_real.imshow(proj_real.T, cmap='gray', aspect='auto')
-        ax_real.set_title(f"hkl=({h},{k},{l})\nReal")
+        ax_real.set_title(f"hkl=[{h},{k},{l}]\nReal")
         ax_real.axis('off')
         # Plot reciprocal
         ax_recip = axes[row_recip, col]
         im2 = ax_recip.imshow(proj_recip.T, cmap='jet', aspect='auto')
-        ax_recip.set_title(f"hkl=({h},{k},{l})\nRecip")
+        ax_recip.set_title(f"hkl=[{h},{k},{l}]\nRecip")
         ax_recip.axis('off')
     # Remove unused axes
     for i in range(idx+1, (nrows//2)*ncols):

@@ -29,7 +29,7 @@ Sequential workflow pipeline:
 
 ## Technical Stack
 
-- **Framework**: PyTorch
+- **Framework**: PyTorch, cupy
 - **Input/Output**: 256×256 diffraction patterns
 - **Architecture**: U-Net (with skip connections)
 - **Loss Functions**: Pearson correlation, L1/L2 with symmetry penalties

@@ -41,6 +41,11 @@ from skimage.draw import polygon
 from skimage.util import montage
 from skimage.metrics import normalized_root_mse
 
+from pathlib import Path
+from datetime import datetime
+import matplotlib.patches as patches
+import h5py
+
 def load_cellinfo_data(file_path):
     """
     Load and extract arrays from the 'cellinfo' structure in the given .mat file.
@@ -4012,6 +4017,7 @@ class LineSelector:
             with self.out:
                 print("Last line removed.")
 
+
 def load_and_analyze_tomogram(tomogram_path, cellinfo_path, pixel_size=20, intensity_threshold=0.8, 
                             rotation_axis='z', rotation_angle=0, fft_threshold=0.0005, 
                             center_cutoff=0.015, voxel_size=(25,25,25), output_dir=None, 
@@ -4330,7 +4336,7 @@ def load_and_analyze_tomogram(tomogram_path, cellinfo_path, pixel_size=20, inten
         cmap='jet', norm=colors.LogNorm())
     ax[1].set_title('FFT of Real Space Projection')
     ax[1].axis('off')
-    fig_proj_combined.suptitle(f'Projection Analysis (h={h}, k={k}, l={l})', fontsize=14)
+    fig_proj_combined.suptitle(f'Projection Analysis [h={h}, k={k}, l={l}]', fontsize=14)
     plt.show()
     
     # Plot HKL projection grid
@@ -4550,5 +4556,6 @@ def load_and_analyze_tomogram(tomogram_path, cellinfo_path, pixel_size=20, inten
         result['output_dir'] = str(output_dir)
     
     return result
+
 
 

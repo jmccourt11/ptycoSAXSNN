@@ -2,7 +2,7 @@
 TOMOGRAM ANALYSIS SUMMARY
 ================================================================================
 
-Analysis Date: 2025-11-24 09:27:24
+Analysis Date: 2025-12-05 09:36:53
 
 INPUT FILES:
   Tomogram: ../data/tomograms/tomogram_alignment_recon_56nm.tiff
